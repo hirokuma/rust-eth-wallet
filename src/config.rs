@@ -1,4 +1,8 @@
-use std::{fs::File, io::prelude::*, path::PathBuf};
+use std::{
+    fs::File,
+    io::prelude::*,
+    path::{Path, PathBuf},
+};
 
 use serde::Deserialize;
 use thiserror::Error;
@@ -8,7 +12,7 @@ use crate::err_log;
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    #[error("I/O error({source}): {err_info}")]
+    #[error("I/O error(path={path}): {err_info}: {source}")]
     File {
         path: PathBuf,
         err_info: &'static str,
@@ -16,11 +20,8 @@ pub enum ConfigError {
         source: std::io::Error,
     },
 
-    #[error("TOML parsing error({source})")]
-    Toml {
-        #[source]
-        source: toml::de::Error,
-    },
+    #[error("TOML parsing error: {0}")]
+    Toml(#[source] toml::de::Error),
 
     #[error("no enabled backend")]
     NoBackend,
@@ -29,10 +30,10 @@ pub enum ConfigError {
 /// Wallet config
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
-    /// Private key filename
-    pub privkey_fname: PathBuf,
+    /// Private key file
+    pub privkey_path: PathBuf,
 
-    /// true: PoA(e.g. Besu)
+    /// true: Proof of Authority(e.g. Besu)
     pub is_poa: bool,
 
     /// RPC URL
@@ -43,7 +44,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(fname: &str) -> Result<Config, ConfigError> {
+    pub fn new(fname: &Path) -> Result<Config, ConfigError> {
         let mut settings = String::new();
         let mut f = File::open(fname).map_err(|e| {
             err_log!(ConfigError::File {
@@ -59,8 +60,7 @@ impl Config {
                 source: e,
             })
         })?;
-        let data: Config =
-            toml::from_str(&settings).map_err(|e| err_log!(ConfigError::Toml { source: e }))?;
+        let data: Config = toml::from_str(&settings).map_err(|e| err_log!(ConfigError::Toml(e)))?;
         Ok(data)
     }
 }

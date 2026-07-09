@@ -22,7 +22,7 @@ use crate::err_log;
 
 #[derive(Error, Debug)]
 pub enum EncDecError {
-    #[error("I/O error({source}: {path}): {err_info}")]
+    #[error("I/O error({path}): {err_info}: {source}")]
     Io {
         path: PathBuf,
         err_info: &'static str,
@@ -30,28 +30,28 @@ pub enum EncDecError {
         source: std::io::Error,
     },
 
-    #[error("convert UTF8 error({source}): {err_info}")]
+    #[error("convert UTF8 error: {err_info}: {source}")]
     ConvUtf8 {
         err_info: &'static str,
         #[source]
         source: FromUtf8Error,
     },
 
-    #[error("wincode write error({source}): {err_info}")]
+    #[error("wincode write error: {err_info}: {source}")]
     WinCodeWrite {
         err_info: &'static str,
         #[source]
         source: wincode::WriteError,
     },
 
-    #[error("wincode read error({source}): {err_info}")]
+    #[error("wincode read error: {err_info}: {source}")]
     WinCodeRead {
         err_info: &'static str,
         #[source]
         source: wincode::ReadError,
     },
 
-    #[error("Argon2 error({err}): {err_info}")]
+    #[error("Argon2 error: {err_info}: {err}")]
     Argon2 {
         err_info: &'static str,
         err: argon2::Error,
@@ -60,13 +60,13 @@ pub enum EncDecError {
     #[error("crypto invalid length error: {err_info}")]
     CryptoInvalidLen { err_info: &'static str },
 
-    #[error("nonce convert error({err}): {err_info}")]
+    #[error("nonce convert error: {err_info}: {err}")]
     ConvNonce {
         err_info: &'static str,
         err: core::array::TryFromSliceError,
     },
 
-    #[error("ChaCha20Poly1305 error({err}): {err_info}")]
+    #[error("ChaCha20Poly1305 error: {err_info}: {err}")]
     ChaCha {
         err_info: &'static str,
         err: chacha20poly1305::aead::Error,

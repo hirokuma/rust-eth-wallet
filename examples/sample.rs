@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
         .init();
 
     let config = Config {
-        privkey_fname: Path::new("./sample-privkey.txt").to_path_buf(),
+        privkey_path: Path::new("./sample-privkey.txt").to_path_buf(),
         is_poa: false,
         rpc_url: "http://localhost:8545".to_string(),
         rpc_ws: "http://localhost:8545".to_string(),
@@ -25,19 +25,19 @@ async fn main() -> Result<()> {
 
     let passphrase = "SuperSecurePassword456!";
     let save_privkey = |priv_data: &str, config: &Config| {
-        debug!("mnemonic={}", priv_data);
+        // debug!("mnemonic={}", priv_data);
         eth_wallet::save_encoded_private_key(priv_data, config, passphrase)
     };
     let load_privkey =
         |config: &Config| match eth_wallet::load_encoded_private_key(config, passphrase) {
             Ok(mnemonic) => {
-                debug!("mnemonic={}", mnemonic);
+                // debug!("mnemonic={}", mnemonic);
                 Ok(mnemonic)
             }
             Err(e) => Err(e),
         };
 
-    let wallet = match config.privkey_fname.exists() {
+    let wallet = match config.privkey_path.exists() {
         true => {
             info!("load wallet");
             EthWallet::load(config, load_privkey).await?

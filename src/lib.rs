@@ -30,23 +30,23 @@ macro_rules! err_log {
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("config error: {0}")]
-    Config(#[from] ConfigError),
+    Config(#[source] ConfigError),
 
-    #[error("encrypt/decrypt: {0}")]
-    EncDec(#[from] EncDecError),
+    #[error("encrypt/decrypt error: {0}")]
+    EncDec(#[source] EncDecError),
 
     #[error("network error: {0}")]
-    Network(#[from] NetworkError),
+    Network(#[source] NetworkError),
 
-    #[error("wallet operation: {0}")]
-    Wallet(#[from] WalletError),
+    #[error("wallet error: {0}")]
+    Wallet(#[source] WalletError),
 
     #[error("eth-wallet error: {0}")]
     EthWallet(String),
 }
 
-pub fn load_config(config_fname: &str) -> Result<Config, Error> {
-    Ok(Config::new(config_fname)?)
+pub fn load_config(config_fname: &Path) -> Result<Config, Error> {
+    Config::new(config_fname).map_err(|e| err_log!(Error::Config(e)))
 }
 
 /// 拡張秘密鍵をChaCha20Poly1305でファイル保存する
@@ -56,16 +56,15 @@ pub fn save_encoded_private_key(
     passphrase: &str,
 ) -> Result<(), Error> {
     let xprv_str = priv_data.to_string();
-    encdec::encrypt_to_file(&config.privkey_fname, &xprv_str, passphrase)?;
+    encdec::encrypt_to_file(&config.privkey_path, &xprv_str, passphrase)
+        .map_err(|e| err_log!(Error::EncDec(e)))?;
     Ok(())
 }
 
 /// save_encoded_private_key()で保存した拡張秘密鍵ファイルを読み込む
 pub fn load_encoded_private_key(config: &Config, passphrase: &str) -> Result<String, Error> {
-    Ok(encdec::decrypt_from_file(
-        &config.privkey_fname,
-        passphrase,
-    )?)
+    encdec::decrypt_from_file(&config.privkey_path, passphrase)
+        .map_err(|e| err_log!(Error::EncDec(e)))
 }
 
 pub struct EthWallet {
@@ -80,19 +79,24 @@ impl EthWallet {
         config: Config,
         mut privkey_save_callback: impl FnMut(&str, &Config) -> Result<(), Error>,
     ) -> Result<Self, Error> {
-        if Path::new(&config.privkey_fname).exists() {
+        if Path::new(&config.privkey_path).exists() {
             return Err(err_log!(Error::EthWallet(format!(
                 "private key file already exist: {}",
-                config.privkey_fname.to_string_lossy()
+                config.privkey_path.to_string_lossy()
             ))));
         }
 
-        let (mnemonic, address) = Wallet::create()?;
+        let (mnemonic, address) = Wallet::create().map_err(|e| err_log!(Error::Wallet(e)))?;
         privkey_save_callback(&mnemonic, &config)?;
 
-        let signer = Wallet::load(&mnemonic)?;
-        let network = Network::new(&config, signer).await?;
-        let balance = network.balance().await?;
+        let signer = Wallet::load(&mnemonic).map_err(|e| err_log!(Error::Wallet(e)))?;
+        let network = Network::new(&config, signer)
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))?;
+        let balance = network
+            .balance()
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))?;
         trace!("balance={balance}");
 
         Ok(Self {
@@ -107,18 +111,23 @@ impl EthWallet {
         config: Config,
         mut privkey_load_callback: impl FnMut(&Config) -> Result<String, Error>,
     ) -> Result<Self, Error> {
-        if !Path::new(&config.privkey_fname).exists() {
+        if !Path::new(&config.privkey_path).exists() {
             return Err(err_log!(Error::EthWallet(format!(
                 "private key file not exist: {}",
-                config.privkey_fname.to_string_lossy()
+                config.privkey_path.to_string_lossy()
             ))));
         }
 
         let mnemonic = privkey_load_callback(&config)?;
-        let signer = Wallet::load(&mnemonic)?;
+        let signer = Wallet::load(&mnemonic).map_err(|e| err_log!(Error::Wallet(e)))?;
         let address = signer.address();
-        let network = Network::new(&config, signer).await?;
-        let balance = network.balance().await?;
+        let network = Network::new(&config, signer)
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))?;
+        let balance = network
+            .balance()
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))?;
         trace!("balance={balance}");
 
         Ok(Self {
@@ -132,12 +141,18 @@ impl EthWallet {
 impl EthWallet {
     /// 残高取得
     pub async fn balance(&self) -> Result<U256, Error> {
-        Ok(self.network.balance().await?)
+        self.network
+            .balance()
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))
     }
 
     /// ブロック番号取得
     pub async fn block_number(&self) -> Result<BlockNumber, Error> {
-        Ok(self.network.block_number().await?)
+        self.network
+            .block_number()
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))
     }
 
     pub async fn send_native_token(
