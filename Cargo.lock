@@ -2002,11 +2002,6 @@ name = "eth_wallet"
 version = "0.0.0"
 dependencies = [
  "alloy",
- "alloy-provider",
- "alloy-signer",
- "alloy-signer-local",
- "alloy-sol-types",
- "alloy-transport",
  "anyhow",
  "argon2",
  "bip39",

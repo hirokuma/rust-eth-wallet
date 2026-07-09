@@ -23,12 +23,19 @@ async fn main() -> Result<()> {
         rpc_ws: "http://localhost:8545".to_string(),
     };
 
-    let passphrase = "SuperSecurePassword123!";
+    let passphrase = "SuperSecurePassword456!";
     let save_privkey = |priv_data: &str, config: &Config| {
         debug!("mnemonic={}", priv_data);
         eth_wallet::save_encoded_private_key(priv_data, config, passphrase)
     };
-    let load_privkey = |config: &Config| eth_wallet::load_encoded_private_key(config, passphrase);
+    let load_privkey =
+        |config: &Config| match eth_wallet::load_encoded_private_key(config, passphrase) {
+            Ok(mnemonic) => {
+                debug!("mnemonic={}", mnemonic);
+                Ok(mnemonic)
+            }
+            Err(e) => Err(e),
+        };
 
     let wallet = match config.privkey_fname.exists() {
         true => {
@@ -41,6 +48,10 @@ async fn main() -> Result<()> {
         }
     };
     info!("address: {}", wallet.address);
+
+    // balance
+    let balance = wallet.balance().await?;
+    info!("balance={balance}");
 
     Ok(())
 }

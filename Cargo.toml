@@ -5,12 +5,7 @@ name = "eth_wallet"
 version = "0.0.0"
 
 [dependencies]
-alloy = {version = "2.1.1", features = ["full", "signer-mnemonic"]}
-alloy-provider = "2.1.1"
-alloy-signer = "2.1.1"
-alloy-signer-local = "2.1.1"
-alloy-sol-types = "1.6.0"
-alloy-transport = "2.1.1"
+alloy = {version = "2.1.1", features = ["full", "providers", "signers", "signer-local", "signer-mnemonic"]}
 argon2 = {version = "0.5.3", features = ["password-hash"]}
 bip39 = {version = "2.2.2", features = ["rand"]}
 chacha20poly1305 = "0.11.0"

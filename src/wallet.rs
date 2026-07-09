@@ -2,9 +2,8 @@ use std::result::Result;
 
 use alloy::{
     primitives::Address,
-    signers::local::{MnemonicBuilder, PrivateKeySigner, coins_bip39::English},
+    signers::local::{LocalSignerError, MnemonicBuilder, PrivateKeySigner, coins_bip39::English},
 };
-use alloy_signer_local::LocalSignerError;
 use bip39::{Language, Mnemonic};
 
 #[derive(thiserror::Error, Debug)]
