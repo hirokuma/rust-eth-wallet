@@ -1,18 +1,22 @@
-pub mod config;
+mod config;
 mod encdec;
+mod erc20;
 mod network;
 mod wallet;
 
-pub use alloy::primitives::{Address, B256, U256};
+pub use alloy::primitives::{Address, B256, U256, uint};
 pub use alloy::rpc::types::TransactionReceipt;
+use std::collections::HashMap;
 use std::path::Path;
 use std::result::Result;
 use std::str::FromStr;
+use std::sync::Arc;
 use tracing::*;
 
-pub use crate::network::BlockNumber;
+use crate::erc20::{Erc20Error, Erc20Token};
+pub use crate::{config::Config, network::BlockNumber};
 use crate::{
-    config::{Config, ConfigError},
+    config::ConfigError,
     encdec::EncDecError,
     network::{Network, NetworkError},
     wallet::{Wallet, WalletError},
@@ -40,6 +44,9 @@ pub enum Error {
 
     #[error("wallet error: {0}")]
     Wallet(#[source] WalletError),
+
+    #[error("ERC20 error: {0}")]
+    Erc20(#[source] Erc20Error),
 
     #[error("eth-wallet error: {0}")]
     EthWallet(String),
@@ -71,6 +78,8 @@ pub struct EthWallet {
     pub config: Config,
     pub network: Network,
     pub address: Address,
+
+    pub tokens: HashMap<Address, Arc<Erc20Token>>,
 }
 
 impl EthWallet {
@@ -93,16 +102,12 @@ impl EthWallet {
         let network = Network::new(&config, signer)
             .await
             .map_err(|e| err_log!(Error::Network(e)))?;
-        let balance = network
-            .balance()
-            .await
-            .map_err(|e| err_log!(Error::Network(e)))?;
-        trace!("balance={balance}");
 
         Ok(Self {
             config,
             network,
             address,
+            tokens: HashMap::new(),
         })
     }
 
@@ -124,25 +129,28 @@ impl EthWallet {
         let network = Network::new(&config, signer)
             .await
             .map_err(|e| err_log!(Error::Network(e)))?;
-        let balance = network
-            .balance()
-            .await
-            .map_err(|e| err_log!(Error::Network(e)))?;
-        trace!("balance={balance}");
 
         Ok(Self {
             config,
             network,
             address,
+            tokens: HashMap::new(),
         })
     }
 }
 
 impl EthWallet {
     /// 残高取得
-    pub async fn balance(&self) -> Result<U256, Error> {
+    pub async fn my_balance(&self) -> Result<U256, Error> {
         self.network
-            .balance()
+            .balance(self.address)
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))
+    }
+
+    pub async fn balance(&self, address: Address) -> Result<U256, Error> {
+        self.network
+            .balance(address)
             .await
             .map_err(|e| err_log!(Error::Network(e)))
     }
@@ -159,10 +167,52 @@ impl EthWallet {
         &self,
         address: Address,
         amount: U256,
-    ) -> Result<TransactionReceipt, NetworkError> {
-        let tx = self.network.send_native_token(address, amount).await?;
-        self.network.get_receipt_from_tx(tx).await
+    ) -> Result<TransactionReceipt, Error> {
+        let tx = self
+            .network
+            .send_native_token(address, amount)
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))?;
+        self.network
+            .receipt_from_tx(tx)
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))
     }
+
+    pub async fn receipt(&self, tx_hash: B256) -> Result<TransactionReceipt, Error> {
+        self.network
+            .receipt_from_txhash(tx_hash)
+            .await
+            .map_err(|e| err_log!(Error::Network(e)))
+    }
+}
+
+impl EthWallet {
+    pub async fn add_token(&mut self, addr_str: &str) -> Result<Arc<Erc20Token>, Error> {
+        let contract_addr = from_str(addr_str)?;
+        let token = Erc20Token::new(contract_addr, self.network.provider.clone())
+            .await
+            .map_err(|e| err_log!(Error::Erc20(e)))?;
+        let token = Arc::new(token);
+        self.tokens.insert(contract_addr, token.clone());
+        Ok(token)
+    }
+
+    pub fn token(&self, addr_str: &str) -> Result<&Arc<Erc20Token>, Error> {
+        let contract_addr = from_str(addr_str)?;
+        match self.tokens.get(&contract_addr) {
+            Some(token) => Ok(token),
+            None => Err(Error::EthWallet(format!("not found: {addr_str}"))),
+        }
+    }
+}
+
+pub fn from_str(addr_str: &str) -> Result<Address, Error> {
+    Address::from_str(addr_str).map_err(|e| {
+        err_log!(Error::EthWallet(format!(
+            "fail convert address({addr_str}): {e}"
+        )))
+    })
 }
 
 // is valid ETH adddress (accept EIP-55 address or not)

@@ -86,6 +86,7 @@ pub enum NetworkError {
     Network { method: String },
 }
 
+#[derive(Debug, Clone)]
 pub struct Network {
     pub address: Address,
     pub signer: PrivateKeySigner,
@@ -99,6 +100,7 @@ pub struct BlockNumber {
     pub finalized: u64,
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockTag {
     safe: BlockNumberOrTag,
     finalized: BlockNumberOrTag,
@@ -147,8 +149,8 @@ impl Network {
         })
     }
 
-    pub async fn balance(&self) -> Result<U256, NetworkError> {
-        let balance = self.provider.get_balance(self.address).await.map_err(|e| {
+    pub async fn balance(&self, address: Address) -> Result<U256, NetworkError> {
+        let balance = self.provider.get_balance(address).await.map_err(|e| {
             err_log!(NetworkError::Rpc {
                 method: format!("get_balance({})", self.address),
                 source: e,
@@ -262,7 +264,7 @@ impl Network {
         Ok(tx)
     }
 
-    pub async fn get_receipt_from_tx(
+    pub async fn receipt_from_tx(
         &self,
         tx: PendingTransactionBuilder<Ethereum>,
     ) -> Result<TransactionReceipt, NetworkError> {
@@ -281,7 +283,7 @@ impl Network {
         }
     }
 
-    pub async fn get_receipt_from_txhash(
+    pub async fn receipt_from_txhash(
         &self,
         txhash: B256,
     ) -> Result<TransactionReceipt, NetworkError> {
