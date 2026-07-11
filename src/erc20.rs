@@ -9,7 +9,7 @@ use alloy::{
 };
 use tracing::*;
 
-use crate::{err_log, network::EthProvider};
+use crate::{log_err, network::EthProvider};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Erc20Error {
@@ -66,22 +66,31 @@ impl Erc20Token {
     pub async fn new(address: Address, network: EthProvider) -> Result<Self, Erc20Error> {
         let token = Erc20::new(address, network);
         let name = token.name().call().await.map_err(|e| {
-            err_log!(Erc20Error::Contract {
-                contract: "name".to_string(),
-                source: e
-            })
+            log_err!(
+                Erc20Error::Contract {
+                    contract: "name".to_string(),
+                    source: e
+                },
+                "new"
+            )
         })?;
         let symbol = token.symbol().call().await.map_err(|e| {
-            err_log!(Erc20Error::Contract {
-                contract: "symbol".to_string(),
-                source: e
-            })
+            log_err!(
+                Erc20Error::Contract {
+                    contract: "symbol".to_string(),
+                    source: e
+                },
+                "new"
+            )
         })?;
         let total_supply = token.totalSupply().call().await.map_err(|e| {
-            err_log!(Erc20Error::Contract {
-                contract: "total_supply".to_string(),
-                source: e
-            })
+            log_err!(
+                Erc20Error::Contract {
+                    contract: "total_supply".to_string(),
+                    source: e
+                },
+                "new"
+            )
         })?;
 
         Ok(Self {
@@ -95,10 +104,13 @@ impl Erc20Token {
 
     pub async fn balance_of(&self, address: Address) -> Result<U256, Erc20Error> {
         let balance = self.token.balanceOf(address).call().await.map_err(|e| {
-            err_log!(Erc20Error::Contract {
-                contract: format!("balanceOf({})", address),
-                source: e
-            })
+            log_err!(
+                Erc20Error::Contract {
+                    contract: format!("balanceOf({})", address),
+                    source: e
+                },
+                "balance_of"
+            )
         })?;
         Ok(balance)
     }
@@ -110,10 +122,13 @@ impl Erc20Token {
             .send()
             .await
             .map_err(|e| {
-                err_log!(Erc20Error::Contract {
-                    contract: format!("transfer({}, {})", to_addr, amount),
-                    source: e,
-                })
+                log_err!(
+                    Erc20Error::Contract {
+                        contract: format!("transfer({}, {})", to_addr, amount),
+                        source: e,
+                    },
+                    "transfer"
+                )
             })?;
         Ok(*tx.tx_hash())
     }

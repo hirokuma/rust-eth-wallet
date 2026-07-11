@@ -7,7 +7,7 @@ use alloy::{
 use bip39::{Language, Mnemonic};
 use tracing::*;
 
-use crate::err_log;
+use crate::log_err;
 
 #[derive(thiserror::Error, Debug)]
 pub enum WalletError {
@@ -25,12 +25,12 @@ pub struct Wallet {}
 impl Wallet {
     pub fn create() -> Result<(String, Address), WalletError> {
         let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_NUM)
-            .map_err(|e| err_log!(WalletError::Bip39(e)))?;
+            .map_err(|e| log_err!(WalletError::Bip39(e), "create"))?;
         let mnemonic = mnemonic.words().collect::<Vec<_>>().join(" ");
         let signer = MnemonicBuilder::<English>::default()
             .phrase(&mnemonic)
             .build()
-            .map_err(|e| err_log!(WalletError::Signer(e)))?;
+            .map_err(|e| log_err!(WalletError::Signer(e), "create"))?;
         Ok((mnemonic, signer.address()))
     }
 
@@ -38,7 +38,7 @@ impl Wallet {
         let signer: PrivateKeySigner = MnemonicBuilder::<English>::default()
             .phrase(mnemonic)
             .build()
-            .map_err(|e| err_log!(WalletError::Signer(e)))?;
+            .map_err(|e| log_err!(WalletError::Signer(e), "load"))?;
         Ok(signer)
     }
 }

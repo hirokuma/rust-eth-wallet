@@ -1,11 +1,11 @@
 mod config;
-mod encdec;
 mod erc20;
 mod network;
 mod wallet;
 
 pub use alloy::primitives::{Address, B256, U256, uint};
 pub use alloy::rpc::types::TransactionReceipt;
+use rust_wallet_utils::{encdec, log_err};
 use std::collections::HashMap;
 use std::path::Path;
 use std::result::Result;
@@ -13,23 +13,14 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tracing::*;
 
-use crate::erc20::{Erc20Error, Erc20Token};
 pub use crate::{config::Config, network::BlockNumber};
 use crate::{
     config::ConfigError,
     encdec::EncDecError,
+    erc20::{Erc20Error, Erc20Token},
     network::{Network, NetworkError},
     wallet::{Wallet, WalletError},
 };
-
-#[macro_export]
-macro_rules! err_log {
-    ($err_variant:expr) => {{
-        let err = $err_variant;
-        error!("{err}");
-        err
-    }};
-}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -50,28 +41,13 @@ pub enum Error {
 
     #[error("eth-wallet error: {0}")]
     EthWallet(String),
+
+    #[error("fail wallet file enc/dec: {0}")]
+    WalletEncDec(#[source] encdec::EncDecError),
 }
 
 pub fn load_config(config_fname: &Path) -> Result<Config, Error> {
-    Config::new(config_fname).map_err(|e| err_log!(Error::Config(e)))
-}
-
-/// 拡張秘密鍵をChaCha20Poly1305でファイル保存する
-pub fn save_encoded_private_key(
-    priv_data: &str,
-    config: &Config,
-    passphrase: &str,
-) -> Result<(), Error> {
-    let xprv_str = priv_data.to_string();
-    encdec::encrypt_to_file(&config.privkey_path, &xprv_str, passphrase)
-        .map_err(|e| err_log!(Error::EncDec(e)))?;
-    Ok(())
-}
-
-/// save_encoded_private_key()で保存した拡張秘密鍵ファイルを読み込む
-pub fn load_encoded_private_key(config: &Config, passphrase: &str) -> Result<String, Error> {
-    encdec::decrypt_from_file(&config.privkey_path, passphrase)
-        .map_err(|e| err_log!(Error::EncDec(e)))
+    Config::new(config_fname).map_err(|e| log_err!(Error::Config(e), "load_config"))
 }
 
 pub struct EthWallet {
@@ -86,22 +62,27 @@ impl EthWallet {
     /// EthWalletを生成する。秘密鍵ファイルがある場合は失敗する。
     pub async fn create(
         config: Config,
-        mut privkey_save_callback: impl FnMut(&str, &Config) -> Result<(), Error>,
+        mut privkey_save_callback: impl FnMut(&str, &Config) -> Result<(), encdec::EncDecError>,
     ) -> Result<Self, Error> {
         if Path::new(&config.privkey_path).exists() {
-            return Err(err_log!(Error::EthWallet(format!(
-                "private key file already exist: {}",
-                config.privkey_path.to_string_lossy()
-            ))));
+            return Err(log_err!(
+                Error::EthWallet(format!(
+                    "private key file already exist: {}",
+                    config.privkey_path.to_string_lossy()
+                )),
+                "create"
+            ));
         }
 
-        let (mnemonic, address) = Wallet::create().map_err(|e| err_log!(Error::Wallet(e)))?;
-        privkey_save_callback(&mnemonic, &config)?;
+        let (mnemonic, address) =
+            Wallet::create().map_err(|e| log_err!(Error::Wallet(e), "create"))?;
+        privkey_save_callback(&mnemonic, &config)
+            .map_err(|e| log_err!(Error::WalletEncDec(e), "create"))?;
 
-        let signer = Wallet::load(&mnemonic).map_err(|e| err_log!(Error::Wallet(e)))?;
+        let signer = Wallet::load(&mnemonic).map_err(|e| log_err!(Error::Wallet(e), "create"))?;
         let network = Network::new(&config, signer)
             .await
-            .map_err(|e| err_log!(Error::Network(e)))?;
+            .map_err(|e| log_err!(Error::Network(e), "network"))?;
 
         Ok(Self {
             config,
@@ -114,21 +95,25 @@ impl EthWallet {
     /// EthWalletをloadする。秘密鍵ファイルがない場合は失敗する。
     pub async fn load(
         config: Config,
-        mut privkey_load_callback: impl FnMut(&Config) -> Result<String, Error>,
+        mut privkey_load_callback: impl FnMut(&Config) -> Result<String, encdec::EncDecError>,
     ) -> Result<Self, Error> {
         if !Path::new(&config.privkey_path).exists() {
-            return Err(err_log!(Error::EthWallet(format!(
-                "private key file not exist: {}",
-                config.privkey_path.to_string_lossy()
-            ))));
+            return Err(log_err!(
+                Error::EthWallet(format!(
+                    "private key file not exist: {}",
+                    config.privkey_path.to_string_lossy()
+                )),
+                "load"
+            ));
         }
 
-        let mnemonic = privkey_load_callback(&config)?;
-        let signer = Wallet::load(&mnemonic).map_err(|e| err_log!(Error::Wallet(e)))?;
+        let mnemonic =
+            privkey_load_callback(&config).map_err(|e| log_err!(Error::WalletEncDec(e), "load"))?;
+        let signer = Wallet::load(&mnemonic).map_err(|e| log_err!(Error::Wallet(e), "load"))?;
         let address = signer.address();
         let network = Network::new(&config, signer)
             .await
-            .map_err(|e| err_log!(Error::Network(e)))?;
+            .map_err(|e| log_err!(Error::Network(e), "load"))?;
 
         Ok(Self {
             config,
@@ -145,14 +130,14 @@ impl EthWallet {
         self.network
             .balance(self.address)
             .await
-            .map_err(|e| err_log!(Error::Network(e)))
+            .map_err(|e| log_err!(Error::Network(e), "my_balance"))
     }
 
     pub async fn balance(&self, address: Address) -> Result<U256, Error> {
         self.network
             .balance(address)
             .await
-            .map_err(|e| err_log!(Error::Network(e)))
+            .map_err(|e| log_err!(Error::Network(e), "balance"))
     }
 
     /// ブロック番号取得
@@ -160,7 +145,7 @@ impl EthWallet {
         self.network
             .block_number()
             .await
-            .map_err(|e| err_log!(Error::Network(e)))
+            .map_err(|e| log_err!(Error::Network(e), "block_number"))
     }
 
     pub async fn send_native_token(
@@ -172,18 +157,18 @@ impl EthWallet {
             .network
             .send_native_token(address, amount)
             .await
-            .map_err(|e| err_log!(Error::Network(e)))?;
+            .map_err(|e| log_err!(Error::Network(e), "send_native_token"))?;
         self.network
             .receipt_from_tx(tx)
             .await
-            .map_err(|e| err_log!(Error::Network(e)))
+            .map_err(|e| log_err!(Error::Network(e), "send_native_token"))
     }
 
     pub async fn receipt(&self, tx_hash: B256) -> Result<TransactionReceipt, Error> {
         self.network
             .receipt_from_txhash(tx_hash)
             .await
-            .map_err(|e| err_log!(Error::Network(e)))
+            .map_err(|e| log_err!(Error::Network(e), "receipt"))
     }
 }
 
@@ -192,7 +177,7 @@ impl EthWallet {
         let contract_addr = from_str(addr_str)?;
         let token = Erc20Token::new(contract_addr, self.network.provider.clone())
             .await
-            .map_err(|e| err_log!(Error::Erc20(e)))?;
+            .map_err(|e| log_err!(Error::Erc20(e), "add_token"))?;
         let token = Arc::new(token);
         self.tokens.insert(contract_addr, token.clone());
         Ok(token)
@@ -209,9 +194,10 @@ impl EthWallet {
 
 pub fn from_str(addr_str: &str) -> Result<Address, Error> {
     Address::from_str(addr_str).map_err(|e| {
-        err_log!(Error::EthWallet(format!(
-            "fail convert address({addr_str}): {e}"
-        )))
+        log_err!(
+            Error::EthWallet(format!("fail convert address({addr_str}): {e}")),
+            "from_str"
+        )
     })
 }
 

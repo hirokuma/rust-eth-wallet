@@ -8,7 +8,7 @@ use serde::Deserialize;
 use thiserror::Error;
 use tracing::*;
 
-use crate::err_log;
+use crate::log_err;
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -47,20 +47,27 @@ impl Config {
     pub fn new(fname: &Path) -> Result<Config, ConfigError> {
         let mut settings = String::new();
         let mut f = File::open(fname).map_err(|e| {
-            err_log!(ConfigError::File {
-                path: fname.into(),
-                err_info: "open",
-                source: e,
-            })
+            log_err!(
+                ConfigError::File {
+                    path: fname.into(),
+                    err_info: "open",
+                    source: e,
+                },
+                "new"
+            )
         })?;
         f.read_to_string(&mut settings).map_err(|e| {
-            err_log!(ConfigError::File {
-                path: fname.into(),
-                err_info: "read_to_string",
-                source: e,
-            })
+            log_err!(
+                ConfigError::File {
+                    path: fname.into(),
+                    err_info: "read_to_string",
+                    source: e,
+                },
+                "new"
+            )
         })?;
-        let data: Config = toml::from_str(&settings).map_err(|e| err_log!(ConfigError::Toml(e)))?;
+        let data: Config =
+            toml::from_str(&settings).map_err(|e| log_err!(ConfigError::Toml(e), "new"))?;
         Ok(data)
     }
 }

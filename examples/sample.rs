@@ -1,5 +1,6 @@
 use anyhow::Result;
 use eth_wallet::{Config, EthWallet, uint};
+use rust_wallet_utils::encdec;
 use std::{path::Path, process::Command};
 use tracing::*;
 use tracing_subscriber::{EnvFilter, prelude::*};
@@ -27,16 +28,18 @@ async fn main() -> Result<()> {
     let passphrase = "SuperSecurePassword456!";
     let save_privkey = |priv_data: &str, config: &Config| {
         // debug!("mnemonic={}", priv_data);
-        eth_wallet::save_encoded_private_key(priv_data, config, passphrase)
+        encdec::save_encoded_private_key(priv_data, &config.privkey_path, passphrase)
     };
-    let load_privkey =
-        |config: &Config| match eth_wallet::load_encoded_private_key(config, passphrase) {
-            Ok(mnemonic) => {
-                // debug!("mnemonic={}", mnemonic);
-                Ok(mnemonic)
-            }
-            Err(e) => Err(e),
-        };
+    let load_privkey = |config: &Config| match encdec::load_encoded_private_key(
+        &config.privkey_path,
+        passphrase,
+    ) {
+        Ok(mnemonic) => {
+            // debug!("mnemonic={}", mnemonic);
+            Ok(mnemonic)
+        }
+        Err(e) => Err(e),
+    };
 
     let mut wallet = match config.privkey_path.exists() {
         true => {

@@ -19,7 +19,7 @@ use alloy::{
 };
 use tracing::*;
 
-use crate::{config::Config, err_log};
+use crate::{config::Config, log_err};
 
 // Ethereum RPCの送信タイムアウト
 const SEND_TIMEOUT: Duration = Duration::from_secs(30);
@@ -151,20 +151,26 @@ impl Network {
 
     pub async fn balance(&self, address: Address) -> Result<U256, NetworkError> {
         let balance = self.provider.get_balance(address).await.map_err(|e| {
-            err_log!(NetworkError::Rpc {
-                method: format!("get_balance({})", self.address),
-                source: e,
-            })
+            log_err!(
+                NetworkError::Rpc {
+                    method: format!("get_balance({})", self.address),
+                    source: e,
+                },
+                "balance"
+            )
         })?;
         Ok(balance)
     }
 
     pub async fn block_number(&self) -> Result<BlockNumber, NetworkError> {
         let current = self.provider.get_block_number().await.map_err(|e| {
-            err_log!(NetworkError::Rpc {
-                method: "get_block_number()".to_string(),
-                source: e,
-            })
+            log_err!(
+                NetworkError::Rpc {
+                    method: "get_block_number()".to_string(),
+                    source: e,
+                },
+                "block_number"
+            )
         })?;
         let safe = match self.block_by_number(self.block_tag.safe()).await {
             Ok(v) => v,
@@ -188,13 +194,19 @@ impl Network {
         match self.provider.get_block_by_number(number).await {
             Ok(v) => match v {
                 Some(block) => Ok(block.number()),
-                None => Err(err_log!(NetworkError::Network {
-                    method: format!("get_block_by_number({}) is none", number),
-                })),
+                None => Err(log_err!(
+                    NetworkError::Network {
+                        method: format!("get_block_by_number({}) is none", number),
+                    },
+                    "block_by_number"
+                )),
             },
-            Err(e) => Err(err_log!(NetworkError::Network {
-                method: format!("get_block_by_number({}) is err: {e}", number),
-            })),
+            Err(e) => Err(log_err!(
+                NetworkError::Network {
+                    method: format!("get_block_by_number({}) is err: {e}", number),
+                },
+                "block_by_number"
+            )),
         }
     }
 
@@ -241,10 +253,13 @@ impl Network {
         amount: U256,
     ) -> Result<PendingTransactionBuilder<Ethereum>, NetworkError> {
         let fees = self.provider.estimate_eip1559_fees().await.map_err(|e| {
-            err_log!(NetworkError::Rpc {
-                method: "estimate_eip1559_fees()".to_string(),
-                source: e,
-            })
+            log_err!(
+                NetworkError::Rpc {
+                    method: "estimate_eip1559_fees()".to_string(),
+                    source: e,
+                },
+                "send_native_token"
+            )
         })?;
         let tx = TransactionRequest::default()
             .with_max_fee_per_gas(fees.max_fee_per_gas)
@@ -256,10 +271,13 @@ impl Network {
             .send_transaction(tx.clone())
             .await
             .map_err(|e| {
-                err_log!(NetworkError::Rpc {
-                    method: format!("send_transaction({:?})", tx.clone()),
-                    source: e,
-                })
+                log_err!(
+                    NetworkError::Rpc {
+                        method: format!("send_transaction({:?})", tx.clone()),
+                        source: e,
+                    },
+                    "send_native_token"
+                )
             })?;
         Ok(tx)
     }
@@ -270,16 +288,20 @@ impl Network {
     ) -> Result<TransactionReceipt, NetworkError> {
         match tx.with_timeout(Some(SEND_TIMEOUT)).get_receipt().await {
             Ok(receipt) => Ok(receipt),
-            Err(e @ PendingTransactionError::TxWatcher(WatchTxError::Timeout)) => {
-                Err(err_log!(NetworkError::Timeout {
-                    method: "get_receipt_from_tx".to_string(),
+            Err(e @ PendingTransactionError::TxWatcher(WatchTxError::Timeout)) => Err(log_err!(
+                NetworkError::Timeout {
+                    method: "receipt_from_tx".to_string(),
                     source: e
-                }))
-            }
-            Err(e) => Err(err_log!(NetworkError::PendingTx {
-                method: "get_receipt_from_tx".to_string(),
-                source: e
-            })),
+                },
+                "receipt_from_tx"
+            )),
+            Err(e) => Err(log_err!(
+                NetworkError::PendingTx {
+                    method: "receipt_from_tx".to_string(),
+                    source: e
+                },
+                "receipt_from_tx"
+            )),
         }
     }
 
@@ -292,10 +314,13 @@ impl Network {
             .get_transaction_receipt(txhash)
             .await
             .map_err(|e| {
-                err_log!(NetworkError::Rpc {
-                    method: format!("get_transaction_receipt({})", txhash),
-                    source: e,
-                })
+                log_err!(
+                    NetworkError::Rpc {
+                        method: format!("get_transaction_receipt({})", txhash),
+                        source: e,
+                    },
+                    "receipt_from_txhash"
+                )
             })? {
             Some(v) => Ok(v),
             None => Err(NetworkError::Network {
