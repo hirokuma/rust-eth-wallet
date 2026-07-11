@@ -27,14 +27,11 @@ async fn main() -> Result<()> {
     };
 
     let passphrase = "SuperSecurePassword456!";
-    let save_privkey = |priv_data: &str, config: &Config| {
+    let save_privkey = |path: &Path, priv_data: &str| {
         // debug!("mnemonic={}", priv_data);
-        encdec::save_encoded_private_key(priv_data, &config.privkey_path, passphrase)
+        encdec::save_encoded_private_key(path, priv_data, passphrase)
     };
-    let load_privkey = |config: &Config| match encdec::load_encoded_private_key(
-        &config.privkey_path,
-        passphrase,
-    ) {
+    let load_privkey = |path: &Path| match encdec::load_encoded_private_key(path, passphrase) {
         Ok(mnemonic) => {
             // debug!("mnemonic={}", mnemonic);
             Ok(mnemonic)

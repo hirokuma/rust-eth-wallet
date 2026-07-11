@@ -59,7 +59,7 @@ impl EthWallet {
     /// EthWalletを生成する。秘密鍵ファイルがある場合は失敗する。
     pub async fn create(
         config: Config,
-        mut privkey_save_callback: impl FnMut(&str, &Config) -> Result<(), encdec::EncDecError>,
+        mut privkey_save_callback: impl FnMut(&Path, &str) -> Result<(), encdec::EncDecError>,
     ) -> Result<Self, Error> {
         if Path::new(&config.privkey_path).exists() {
             return Err(log_err!(
@@ -73,7 +73,7 @@ impl EthWallet {
 
         let (mnemonic, address) =
             Wallet::create().map_err(|e| log_err!(Error::Wallet(e), "create"))?;
-        privkey_save_callback(&mnemonic, &config)
+        privkey_save_callback(&config.privkey_path, &mnemonic)
             .map_err(|e| log_err!(Error::WalletEncDec(e), "create"))?;
 
         let signer = Wallet::load(&mnemonic).map_err(|e| log_err!(Error::Wallet(e), "create"))?;
@@ -92,7 +92,7 @@ impl EthWallet {
     /// EthWalletをloadする。秘密鍵ファイルがない場合は失敗する。
     pub async fn load(
         config: Config,
-        mut privkey_load_callback: impl FnMut(&Config) -> Result<String, encdec::EncDecError>,
+        mut privkey_load_callback: impl FnMut(&Path) -> Result<String, encdec::EncDecError>,
     ) -> Result<Self, Error> {
         if !Path::new(&config.privkey_path).exists() {
             return Err(log_err!(
@@ -104,8 +104,8 @@ impl EthWallet {
             ));
         }
 
-        let mnemonic =
-            privkey_load_callback(&config).map_err(|e| log_err!(Error::WalletEncDec(e), "load"))?;
+        let mnemonic = privkey_load_callback(&config.privkey_path)
+            .map_err(|e| log_err!(Error::WalletEncDec(e), "load"))?;
         let signer = Wallet::load(&mnemonic).map_err(|e| log_err!(Error::Wallet(e), "load"))?;
         let address = signer.address();
         let network = Network::new(&config, signer)
