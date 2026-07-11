@@ -3,15 +3,12 @@ mod erc20;
 mod network;
 mod wallet;
 
+use std::{collections::HashMap, path::Path, result::Result, str::FromStr, sync::Arc};
+
 pub use alloy::primitives::{Address, B256, U256, uint};
 pub use alloy::rpc::types::TransactionReceipt;
-use rust_wallet_utils::{encdec, log_err};
-use std::collections::HashMap;
-use std::path::Path;
-use std::result::Result;
-use std::str::FromStr;
-use std::sync::Arc;
 use tracing::*;
+use wallet_utils::{encdec, log_err};
 
 pub use crate::{config::Config, network::BlockNumber};
 use crate::{

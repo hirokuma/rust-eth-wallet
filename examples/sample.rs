@@ -1,9 +1,10 @@
+use std::{path::Path, process::Command};
+
 use anyhow::Result;
 use eth_wallet::{Config, EthWallet, uint};
-use rust_wallet_utils::encdec;
-use std::{path::Path, process::Command};
 use tracing::*;
 use tracing_subscriber::{EnvFilter, prelude::*};
+use wallet_utils::encdec;
 
 #[tokio::main]
 async fn main() -> Result<()> {
