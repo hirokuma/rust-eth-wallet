@@ -5,7 +5,7 @@ mod wallet;
 
 use std::{collections::HashMap, path::Path, result::Result, str::FromStr, sync::Arc};
 
-pub use alloy::primitives::{Address, B256, U256, uint};
+pub use alloy::primitives::{Address, TxHash, U256, uint};
 pub use alloy::rpc::types::TransactionReceipt;
 use tracing::*;
 use wallet_utils::{encdec, log_err};
@@ -145,23 +145,16 @@ impl EthWallet {
             .map_err(|e| log_err!(Error::Network(e), "block_number"))
     }
 
-    pub async fn send_native_token(
-        &self,
-        address: Address,
-        amount: U256,
-    ) -> Result<TransactionReceipt, Error> {
+    pub async fn send_native_token(&self, address: Address, amount: U256) -> Result<TxHash, Error> {
         let tx = self
             .network
             .send_native_token(address, amount)
             .await
             .map_err(|e| log_err!(Error::Network(e), "send_native_token"))?;
-        self.network
-            .receipt_from_tx(tx)
-            .await
-            .map_err(|e| log_err!(Error::Network(e), "send_native_token"))
+        Ok(*tx.tx_hash())
     }
 
-    pub async fn receipt(&self, tx_hash: B256) -> Result<TransactionReceipt, Error> {
+    pub async fn receipt(&self, tx_hash: TxHash) -> Result<TransactionReceipt, Error> {
         self.network
             .receipt_from_txhash(tx_hash)
             .await
