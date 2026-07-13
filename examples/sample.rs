@@ -82,6 +82,7 @@ async fn main() -> Result<()> {
 
     // ERC-20
     let contract = "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0";
+    let contract = eth_wallet::from_str(contract)?;
     let token = wallet.add_token(contract).await?;
     info!("token: {:#?}", token);
     let balance = token.balance_of(owner).await?;

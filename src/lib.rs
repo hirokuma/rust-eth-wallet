@@ -163,21 +163,19 @@ impl EthWallet {
 }
 
 impl EthWallet {
-    pub async fn add_token(&mut self, addr_str: &str) -> Result<Arc<Erc20Token>, Error> {
-        let contract_addr = from_str(addr_str)?;
-        let token = Erc20Token::new(contract_addr, self.network.provider.clone())
+    pub async fn add_token(&mut self, address: Address) -> Result<Arc<Erc20Token>, Error> {
+        let token = Erc20Token::new(address, self.network.provider.clone())
             .await
             .map_err(|e| log_err!(Error::Erc20(e), "add_token"))?;
         let token = Arc::new(token);
-        self.tokens.insert(contract_addr, token.clone());
+        self.tokens.insert(address, token.clone());
         Ok(token)
     }
 
-    pub fn token(&self, addr_str: &str) -> Result<&Arc<Erc20Token>, Error> {
-        let contract_addr = from_str(addr_str)?;
-        match self.tokens.get(&contract_addr) {
+    pub fn token(&self, address: Address) -> Result<&Arc<Erc20Token>, Error> {
+        match self.tokens.get(&address) {
             Some(token) => Ok(token),
-            None => Err(Error::EthWallet(format!("not found: {addr_str}"))),
+            None => Err(Error::EthWallet(format!("not found: {}", address))),
         }
     }
 }
