@@ -10,11 +10,11 @@ pub use alloy::rpc::types::TransactionReceipt;
 use tracing::*;
 use wallet_utils::{encdec, log_err};
 
-pub use crate::{config::Config, network::BlockNumber};
+pub use crate::{config::Config, erc20::Erc20Token, network::BlockNumber};
 use crate::{
     config::ConfigError,
     encdec::EncDecError,
-    erc20::{Erc20Error, Erc20Token},
+    erc20::Erc20Error,
     network::{Network, NetworkError},
     wallet::{Wallet, WalletError},
 };
